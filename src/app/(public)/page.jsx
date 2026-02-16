@@ -123,7 +123,9 @@ export default function HomePage() {
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-tight mb-6 opacity-0 animate-fade-in-up text-gray-900 dark:text-white">
             Event Registration
             <br />
-            <span className="gradient-text">Made Effortless</span>
+           <div className="mt-5">
+             <span className="gradient-text">Made Effortless</span>
+           </div>
           </h1>
 
           <p className="text-lg sm:text-xl text-gray-500 dark:text-slate-400 max-w-2xl mx-auto mb-10 opacity-0 animate-fade-in-up stagger-2">
