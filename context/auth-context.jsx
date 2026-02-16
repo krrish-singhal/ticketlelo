@@ -17,6 +17,14 @@ export const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
+          // Set auth cookie for middleware
+          try {
+            const token = await firebaseUser.getIdToken();
+            document.cookie = `auth-token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+          } catch (cookieErr) {
+            console.warn("Failed to set auth cookie:", cookieErr);
+          }
+
           // Fetch user data from Firestore
           let userData = await getCurrentUser(firebaseUser.uid);
 
@@ -70,6 +78,8 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await firebaseLogout();
+      // Clear auth cookie
+      document.cookie = "auth-token=; path=/; max-age=0; SameSite=Lax";
       setUser(null);
       setError(null);
     } catch (err) {

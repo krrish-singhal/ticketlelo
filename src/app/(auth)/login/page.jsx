@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -36,10 +37,22 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Redirect already-authenticated users
+  useEffect(() => {
+    if (!authLoading && user) {
+      if (user.isAdmin) {
+        window.location.href = "/admin/dashboard";
+      } else {
+        window.location.href = "/dashboard";
+      }
+    }
+  }, [user, authLoading]);
 
   const {
     register,
@@ -52,11 +65,12 @@ export default function LoginPage() {
     try {
       const userData = await login(data.email, data.password);
       toast.success("Logged in successfully!");
-      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Redirect immediately
       if (userData?.isAdmin) {
-        router.replace("/admin/dashboard");
+        window.location.href = "/admin/dashboard";
       } else {
-        router.replace("/dashboard");
+        window.location.href = "/dashboard";
       }
     } catch (error) {
       console.error("Login error:", error);
