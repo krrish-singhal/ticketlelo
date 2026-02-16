@@ -83,7 +83,13 @@ export default function LoginPage() {
 
       {/* Left decorative panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-950 via-purple-900 to-indigo-950" style={{backgroundSize: '400% 400%', animation: 'gradientShift 12s ease infinite'}} />
+        <div
+          className="absolute inset-0 bg-gradient-to-br from-violet-950 via-purple-900 to-indigo-950"
+          style={{
+            backgroundSize: "400% 400%",
+            animation: "gradientShift 12s ease infinite",
+          }}
+        />
         <div className="absolute inset-0 dots-bg opacity-30" />
         <div className="absolute top-20 left-10 w-72 h-72 bg-violet-600/20 rounded-full blur-[100px] animate-float" />
         <div
