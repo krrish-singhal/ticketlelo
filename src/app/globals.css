@@ -1,26 +1,246 @@
-@import "tailwindcss";
+/* stylelint-disable at-rule-no-unknown */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* stylelint-enable at-rule-no-unknown */
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+body {
+  font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  :root {
+    --background: 250 100% 99%;
+    --foreground: 240 10% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 10%;
+    --primary: 263 70% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 252 94% 97%;
+    --secondary-foreground: 263 50% 40%;
+    --muted: 250 40% 96%;
+    --muted-foreground: 240 5% 46%;
+    --accent: 260 60% 95%;
+    --accent-foreground: 263 50% 40%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 260 20% 90%;
+    --input: 260 20% 90%;
+    --ring: 263 70% 58%;
+    --chart-1: 263 70% 58%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.75rem;
+    --sidebar-background: 252 94% 98%;
+    --sidebar-foreground: 240 10% 20%;
+    --sidebar-primary: 263 70% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 260 60% 95%;
+    --sidebar-accent-foreground: 263 50% 40%;
+    --sidebar-border: 260 20% 92%;
+    --sidebar-ring: 263 70% 58%;
+  }
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 263 70% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 47% 12%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 222 47% 14%;
+    --muted-foreground: 215 20% 55%;
+    --accent: 222 47% 14%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 222 30% 16%;
+    --input: 222 30% 16%;
+    --ring: 263 70% 58%;
+    --chart-1: 263 70% 58%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 222 47% 7%;
+    --sidebar-foreground: 210 40% 90%;
+    --sidebar-primary: 263 70% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 12%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 222 30% 14%;
+    --sidebar-ring: 263 70% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Stagger animation delays */
+.stagger-1 {
+  animation-delay: 0.1s;
+}
+.stagger-2 {
+  animation-delay: 0.2s;
+}
+.stagger-3 {
+  animation-delay: 0.3s;
+}
+.stagger-4 {
+  animation-delay: 0.4s;
+}
+.stagger-5 {
+  animation-delay: 0.5s;
+}
+.stagger-6 {
+  animation-delay: 0.6s;
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(200, 180, 240, 0.3);
+}
+
+.dark .glass {
+  background: rgba(15, 18, 35, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-dark {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(200, 180, 240, 0.25);
+}
+
+.dark .glass-dark {
+  background: rgba(10, 12, 28, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animated gradient background */
+.gradient-bg {
+  background: linear-gradient(-45deg, #f5f3ff, #ede9fe, #f0e5ff, #e8e0ff);
+  background-size: 400% 400%;
+  animation: gradientShift 12s ease infinite;
+}
+.dark .gradient-bg {
+  background: linear-gradient(-45deg, #0a0c1c, #1a1040, #0c1a3a, #0d0820);
+  background-size: 400% 400%;
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Particle dots background */
+.dots-bg {
+  background-image: radial-gradient(
+    circle,
+    rgba(124, 58, 237, 0.08) 1px,
+    transparent 1px
+  );
+  background-size: 28px 28px;
+}
+.dark .dots-bg {
+  background-image: radial-gradient(
+    circle,
+    rgba(139, 92, 246, 0.12) 1px,
+    transparent 1px
+  );
+}
+
+/* Smooth card hover */
+.card-hover {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-hover:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px -12px rgba(124, 58, 237, 0.12);
+}
+.dark .card-hover:hover {
+  box-shadow: 0 20px 40px -12px rgba(139, 92, 246, 0.18);
+}
+
+/* Password strength meter colors */
+.strength-weak {
+  background: #ef4444;
+}
+.strength-fair {
+  background: #f59e0b;
+}
+.strength-good {
+  background: #3b82f6;
+}
+.strength-strong {
+  background: #10b981;
+}
+
+/* Input focus glow */
+.input-glow:focus-within {
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+}
+.dark .input-glow:focus-within {
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.35);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.5);
 }

@@ -1,7 +1,17 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
-    }
-  }
+      "@/*": ["./src/*", "./*"]
+    },
+    "target": "ES6",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "jsx": "react-jsx",
+    "checkJs": false,
+    "allowJs": true,
+    "strict": false
+  },
+  "exclude": ["node_modules", ".next", "out", "build"],
+  "include": ["**/*.js", "**/*.jsx"]
 }
