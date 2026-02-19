@@ -3,169 +3,161 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const Select = ({ children, value, onValueChange, disabled, ...props }) => {
-  return (
-    <div className="relative" {...props}>
-      {React.Children.map(children, (child) => {
-        if (child?.type?.displayName === "SelectTrigger") {
-          return React.cloneElement(child, {
-            value,
-            onValueChange,
-            selectChildren: children,
-            disabled,
-          });
+const SelectContext = React.createContext(null);
+
+const Select = ({ children, value, onValueChange, disabled }) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [selectedLabel, setSelectedLabel] = React.useState("");
+  const containerRef = React.useRef(null);
+  const itemLabels = React.useRef({});
+
+  // Close on outside click
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleMouseDown = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [isOpen]);
+
+  // When value changes, look up the label from the registry
+  React.useEffect(() => {
+    if (!value) {
+      setSelectedLabel("");
+    } else {
+      // Delay one tick so items have had a chance to register via useLayoutEffect
+      const id = setTimeout(() => {
+        if (itemLabels.current[value]) {
+          setSelectedLabel(itemLabels.current[value]);
         }
-        return null;
-      })}
-    </div>
+      }, 0);
+      return () => clearTimeout(id);
+    }
+  }, [value]);
+
+  const handleSelect = React.useCallback(
+    (itemValue, itemLabel) => {
+      onValueChange(itemValue);
+      setSelectedLabel(itemLabel);
+      setIsOpen(false);
+    },
+    [onValueChange],
+  );
+
+  // Safe registration: only writes to ref, never calls setState
+  const registerItem = React.useCallback((itemValue, itemLabel) => {
+    itemLabels.current[itemValue] = itemLabel;
+  }, []);
+
+  return (
+    <SelectContext.Provider
+      value={{
+        value,
+        isOpen,
+        setIsOpen,
+        handleSelect,
+        registerItem,
+        selectedLabel,
+        disabled: !!disabled,
+      }}
+    >
+      <div className="relative" ref={containerRef}>
+        {children}
+      </div>
+    </SelectContext.Provider>
   );
 };
+Select.displayName = "Select";
 
 const SelectTrigger = React.forwardRef(
-  (
-    {
-      className,
-      children,
-      value,
-      onValueChange,
-      selectChildren,
-      disabled,
-      ...props
-    },
-    ref,
-  ) => {
-    const [isOpen, setIsOpen] = React.useState(false);
-    const triggerRef = React.useRef(null);
+  ({ className, children, ...props }, ref) => {
+    const { value, isOpen, setIsOpen, disabled, selectedLabel } =
+      React.useContext(SelectContext);
 
-    // Close on outside click
-    React.useEffect(() => {
-      if (!isOpen) return;
-      const handleClick = (e) => {
-        if (triggerRef.current && !triggerRef.current.contains(e.target)) {
-          setIsOpen(false);
-        }
-      };
-      document.addEventListener("mousedown", handleClick);
-      return () => document.removeEventListener("mousedown", handleClick);
-    }, [isOpen]);
-
-    const getDisplayValue = () => {
-      if (!value) {
-        const selectValue = React.Children.toArray(children).find(
-          (child) => child?.type?.displayName === "SelectValue",
-        );
-        return selectValue?.props.placeholder || "Select an option";
-      }
-      let displayText = value;
-      React.Children.forEach(selectChildren, (child) => {
-        if (child?.type?.displayName === "SelectContent") {
-          React.Children.forEach(child.props.children, (item) => {
-            if (
-              item?.type?.displayName === "SelectItem" &&
-              item.props.value === value
-            ) {
-              displayText = item.props.children;
-            }
-          });
-        }
-      });
-      return displayText;
-    };
+    const placeholder =
+      React.Children.toArray(children).find(
+        (c) => c?.type?.displayName === "SelectValue",
+      )?.props?.placeholder ?? "Select an option";
 
     return (
-      <div ref={triggerRef}>
-        <button
-          ref={ref}
-          type="button"
-          onClick={() => !disabled && setIsOpen(!isOpen)}
-          disabled={disabled}
-          className={cn(
-            "flex h-10 w-full items-center justify-between rounded-xl border px-3 py-2 text-sm transition-all",
-            "bg-white border-violet-200 text-gray-900 hover:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400",
-            "dark:bg-slate-900/80 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-600 dark:focus:ring-violet-500/20 dark:focus:border-violet-500",
-            !value && "text-gray-400 dark:text-slate-500",
-            disabled && "opacity-50 cursor-not-allowed",
-            className,
-          )}
-          {...props}
-        >
-          <span className="truncate">{getDisplayValue()}</span>
-          <svg
-            className={cn(
-              "h-4 w-4 shrink-0 transition-transform opacity-50",
-              isOpen && "rotate-180",
-            )}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-        </button>
-        {isOpen && (
-          <div className="absolute z-50 mt-1.5 w-full rounded-xl border shadow-xl animate-scale-in overflow-hidden bg-white border-violet-200/80 dark:bg-slate-900 dark:border-slate-700">
-            {React.Children.map(selectChildren, (child) => {
-              if (child?.type?.displayName === "SelectContent") {
-                return React.cloneElement(child, {
-                  value,
-                  onValueChange,
-                  onClose: () => setIsOpen(false),
-                });
-              }
-              return null;
-            })}
-          </div>
+      <button
+        ref={ref}
+        type="button"
+        onClick={() => !disabled && setIsOpen((prev) => !prev)}
+        disabled={disabled}
+        className={cn(
+          "flex h-10 w-full items-center justify-between rounded-xl border px-3 py-2 text-sm transition-all",
+          "bg-white border-violet-200 text-gray-900 hover:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400",
+          "dark:bg-slate-900/80 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-600 dark:focus:ring-violet-500/20 dark:focus:border-violet-500",
+          !value && "text-gray-400 dark:text-slate-500",
+          disabled && "opacity-50 cursor-not-allowed",
+          className,
         )}
-      </div>
+        {...props}
+      >
+        <span className="truncate">{selectedLabel || placeholder}</span>
+        <svg
+          className={cn(
+            "h-4 w-4 shrink-0 transition-transform opacity-50",
+            isOpen && "rotate-180",
+          )}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
     );
   },
 );
 SelectTrigger.displayName = "SelectTrigger";
 
-const SelectContent = ({
-  children,
-  className,
-  value,
-  onValueChange,
-  onClose,
-}) => {
+// Always in DOM (hidden via CSS) so items stay registered
+const SelectContent = ({ children, className }) => {
+  const { isOpen } = React.useContext(SelectContext);
   return (
-    <div className={cn("max-h-60 overflow-auto p-1", className)}>
-      {React.Children.map(children, (child) => {
-        if (child?.type?.displayName === "SelectItem") {
-          return React.cloneElement(child, {
-            selectedValue: value,
-            onValueChange,
-            onClose,
-          });
-        }
-        return child;
-      })}
+    <div
+      className={cn(
+        "absolute z-50 mt-1.5 w-full rounded-xl border shadow-xl overflow-hidden bg-white border-violet-200/80 dark:bg-slate-900 dark:border-slate-700",
+        isOpen ? "block animate-scale-in" : "hidden",
+      )}
+    >
+      <div className={cn("max-h-60 overflow-auto p-1", className)}>
+        {children}
+      </div>
     </div>
   );
 };
 SelectContent.displayName = "SelectContent";
 
-const SelectItem = ({
-  children,
-  value,
-  selectedValue,
-  onValueChange,
-  onClose,
-  className,
-  ...props
-}) => {
+const SelectItem = ({ children, value, className, ...props }) => {
+  const {
+    value: selectedValue,
+    handleSelect,
+    registerItem,
+  } = React.useContext(SelectContext);
   const isSelected = selectedValue === value;
+  const label = typeof children === "string" ? children : String(value);
+
+  // Register via layout effect — safe, never during render
+  React.useLayoutEffect(() => {
+    registerItem(value, label);
+  }, [value, label, registerItem]);
+
   return (
     <div
-      onClick={() => {
-        onValueChange(value);
-        onClose();
+      onMouseDown={(e) => {
+        e.preventDefault();
+        handleSelect(value, label);
       }}
       className={cn(
         "relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2 text-sm transition-colors",
@@ -198,9 +190,7 @@ const SelectItem = ({
 };
 SelectItem.displayName = "SelectItem";
 
-const SelectValue = ({ placeholder }) => {
-  return <span>{placeholder}</span>;
-};
+const SelectValue = ({ placeholder }) => <span>{placeholder}</span>;
 SelectValue.displayName = "SelectValue";
 
 export { Select, SelectTrigger, SelectContent, SelectItem, SelectValue };

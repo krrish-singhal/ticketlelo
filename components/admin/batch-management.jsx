@@ -1,15 +1,138 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+function EventDropdown({ events, value, onChange, disabled }) {
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState(null);
+  const triggerRef = useRef(null);
+  const selected = events.find((e) => e.id === value);
+
+  // Recalculate position on open
+  useEffect(() => {
+    if (open && triggerRef.current) {
+      setRect(triggerRef.current.getBoundingClientRect());
+    }
+  }, [open]);
+
+  // Close on scroll/resize
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  const dropdown =
+    open &&
+    rect &&
+    createPortal(
+      <>
+        {/* Overlay */}
+        <div
+          className="fixed inset-0 z-[9998]"
+          onClick={() => setOpen(false)}
+        />
+        {/* Dropdown list */}
+        <div
+          style={{
+            position: "fixed",
+            top: rect.bottom + 6,
+            left: rect.left,
+            width: rect.width,
+            zIndex: 9999,
+          }}
+          className="rounded-xl border border-violet-200/80 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden"
+        >
+          <div className="max-h-60 overflow-auto p-1">
+            {events.map((event) => {
+              const isSelected = event.id === value;
+              return (
+                <div
+                  key={event.id}
+                  onClick={() => {
+                    onChange(event.id);
+                    setOpen(false);
+                  }}
+                  className={[
+                    "relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2 text-sm transition-colors",
+                    isSelected
+                      ? "bg-violet-50 text-violet-700 font-medium dark:bg-violet-500/10 dark:text-violet-400"
+                      : "text-gray-700 hover:bg-violet-50 hover:text-violet-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white",
+                  ].join(" ")}
+                >
+                  {event.name}
+                  {isSelected && (
+                    <svg
+                      className="ml-auto h-4 w-4 text-violet-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </>,
+      document.body,
+    );
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((p) => !p)}
+        className={[
+          "flex h-12 w-full items-center justify-between rounded-xl border px-4 py-2 text-sm transition-all bg-white dark:bg-slate-900 shadow-sm",
+          open
+            ? "border-violet-500 ring-2 ring-violet-500/20"
+            : "border-violet-200 dark:border-slate-800 hover:border-violet-300 dark:hover:border-slate-600",
+          disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+          !value
+            ? "text-gray-400 dark:text-slate-500"
+            : "text-gray-900 dark:text-white",
+        ].join(" ")}
+      >
+        <span className="truncate">
+          {selected ? selected.name : "Choose an event to manage batches"}
+        </span>
+        <svg
+          className={`h-4 w-4 shrink-0 opacity-50 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+      {dropdown}
+    </div>
+  );
+}
+
 import {
   Loader2,
   Plus,
@@ -210,22 +333,12 @@ export function BatchManagement() {
         <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2 block">
           Select Event
         </label>
-        <Select
+        <EventDropdown
+          events={events}
           value={selectedEventId}
-          onValueChange={setSelectedEventId}
+          onChange={setSelectedEventId}
           disabled={isLoading || !!editingBatch}
-        >
-          <SelectTrigger className="h-12 bg-white dark:bg-slate-900 border-violet-200 dark:border-slate-800 text-gray-900 dark:text-white focus:border-violet-500 rounded-xl">
-            <SelectValue placeholder="Choose an event to manage batches" />
-          </SelectTrigger>
-          <SelectContent>
-            {events.map((event) => (
-              <SelectItem key={event.id} value={event.id}>
-                {event.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
       </div>
 
       {/* Create/Edit Form */}
