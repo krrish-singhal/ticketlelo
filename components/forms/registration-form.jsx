@@ -98,6 +98,19 @@ export function RegistrationForm({ events, preSelectedEventId }) {
     }
   }, [preSelectedEventId, setValue]);
 
+  // If no pre-selected event, pick the first active event automatically
+  useEffect(() => {
+    if (preSelectedEventId) return;
+    if (!selectedEventId && events && events.length > 0) {
+      const ev = events.find((e) => e.isActive) || events[0];
+      if (ev) {
+        setSelectedEventId(ev.id);
+        setValue("eventId", ev.id);
+        loadBatches(ev.id);
+      }
+    }
+  }, [events, preSelectedEventId, selectedEventId, setValue]);
+
   const loadBatches = async (eventId) => {
     try {
       const batchData = await getBatchesByEvent(eventId);
@@ -323,70 +336,36 @@ export function RegistrationForm({ events, preSelectedEventId }) {
         )}
       </div>
 
-      {/* Event & Batch in grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-            Select Event *
-          </label>
-          <Select
-            value={selectedEventId}
-            onValueChange={handleEventChange}
-            disabled={isLoading || !!preSelectedEventId}
-          >
-            <SelectTrigger
-              ref={nextFieldRef}
-              className="h-12 bg-white dark:bg-slate-900 border-violet-200 dark:border-slate-800 text-gray-900 dark:text-white rounded-xl focus:border-violet-500"
-            >
-              <SelectValue placeholder="Choose an event" />
-            </SelectTrigger>
-            <SelectContent>
-              {events
-                .filter((e) => e.isActive)
-                .map((event) => (
-                  <SelectItem key={event.id} value={event.id}>
-                    {event.name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-          {errors.eventId && (
-            <p className="text-sm text-red-500 dark:text-red-400">
-              {errors.eventId.message}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-            Select Batch *
-          </label>
-          <Select
-            value={selectedBatchId}
-            onValueChange={handleBatchChange}
-            disabled={isLoading || batches.length === 0}
-          >
-            <SelectTrigger className="h-12 bg-white dark:bg-slate-900 border-violet-200 dark:border-slate-800 text-gray-900 dark:text-white rounded-xl focus:border-violet-500">
-              <SelectValue
-                placeholder={
-                  batches.length === 0 ? "Select event first" : "Choose a batch"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {batches.map((batch) => (
-                <SelectItem key={batch.id} value={batch.id}>
-                  {batch.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {errors.batchId && (
-            <p className="text-sm text-red-500 dark:text-red-400">
-              {errors.batchId.message}
-            </p>
-          )}
-        </div>
+      {/* Batch selector (event selection removed) */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
+          Select Batch *
+        </label>
+        <Select
+          value={selectedBatchId}
+          onValueChange={handleBatchChange}
+          disabled={isLoading || batches.length === 0}
+        >
+          <SelectTrigger className="h-12 bg-white dark:bg-slate-900 border-violet-200 dark:border-slate-800 text-gray-900 dark:text-white rounded-xl focus:border-violet-500">
+            <SelectValue
+              placeholder={
+                batches.length === 0 ? "No batches available" : "Choose a batch"
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {batches.map((batch) => (
+              <SelectItem key={batch.id} value={batch.id}>
+                {batch.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.batchId && (
+          <p className="text-sm text-red-500 dark:text-red-400">
+            {errors.batchId.message}
+          </p>
+        )}
       </div>
 
       {/* Message */}

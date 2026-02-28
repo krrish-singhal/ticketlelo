@@ -7,50 +7,38 @@ const SelectContext = React.createContext(null);
 
 const Select = ({ children, value, onValueChange, disabled }) => {
   const [isOpen, setIsOpen] = React.useState(false);
-  const [selectedLabel, setSelectedLabel] = React.useState("");
   const containerRef = React.useRef(null);
-  const itemLabels = React.useRef({});
+  const [labelMap, setLabelMap] = React.useState({});
 
-  // Close on outside click
   React.useEffect(() => {
     if (!isOpen) return;
-    const handleMouseDown = (e) => {
+    const handleClick = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setIsOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleMouseDown);
-    return () => document.removeEventListener("mousedown", handleMouseDown);
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
   }, [isOpen]);
 
-  // When value changes, look up the label from the registry
-  React.useEffect(() => {
-    if (!value) {
-      setSelectedLabel("");
-    } else {
-      // Delay one tick so items have had a chance to register via useLayoutEffect
-      const id = setTimeout(() => {
-        if (itemLabels.current[value]) {
-          setSelectedLabel(itemLabels.current[value]);
-        }
-      }, 0);
-      return () => clearTimeout(id);
-    }
-  }, [value]);
+  const registerItem = React.useCallback((itemValue, itemLabel) => {
+    setLabelMap((prev) => {
+      if (prev[itemValue] === itemLabel) return prev;
+      return { ...prev, [itemValue]: itemLabel };
+    });
+  }, []);
 
   const handleSelect = React.useCallback(
-    (itemValue, itemLabel) => {
+    (itemValue) => {
       onValueChange(itemValue);
-      setSelectedLabel(itemLabel);
       setIsOpen(false);
     },
     [onValueChange],
   );
 
-  // Safe registration: only writes to ref, never calls setState
-  const registerItem = React.useCallback((itemValue, itemLabel) => {
-    itemLabels.current[itemValue] = itemLabel;
-  }, []);
+  // Only treat null/undefined as "no selection". Empty string "" IS a valid selection.
+  const hasSelection = value !== undefined && value !== null && value !== "";
+  const selectedLabel = hasSelection ? (labelMap[value] ?? "") : "";
 
   return (
     <SelectContext.Provider
@@ -61,6 +49,7 @@ const Select = ({ children, value, onValueChange, disabled }) => {
         handleSelect,
         registerItem,
         selectedLabel,
+        hasSelection,
         disabled: !!disabled,
       }}
     >
@@ -74,31 +63,41 @@ Select.displayName = "Select";
 
 const SelectTrigger = React.forwardRef(
   ({ className, children, ...props }, ref) => {
-    const { value, isOpen, setIsOpen, disabled, selectedLabel } =
+    const { isOpen, setIsOpen, disabled, selectedLabel, hasSelection } =
       React.useContext(SelectContext);
 
-    const placeholder =
-      React.Children.toArray(children).find(
-        (c) => c?.type?.displayName === "SelectValue",
-      )?.props?.placeholder ?? "Select an option";
+    let placeholder = "Select an option";
+    React.Children.forEach(children, (child) => {
+      if (
+        child?.type?.displayName === "SelectValue" &&
+        child.props?.placeholder
+      ) {
+        placeholder = child.props.placeholder;
+      }
+    });
+
+    const displayText = hasSelection ? selectedLabel || placeholder : placeholder;
 
     return (
       <button
         ref={ref}
         type="button"
-        onClick={() => !disabled && setIsOpen((prev) => !prev)}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!disabled) setIsOpen((prev) => !prev);
+        }}
         disabled={disabled}
         className={cn(
           "flex h-10 w-full items-center justify-between rounded-xl border px-3 py-2 text-sm transition-all",
           "bg-white border-violet-200 text-gray-900 hover:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400",
           "dark:bg-slate-900/80 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-600 dark:focus:ring-violet-500/20 dark:focus:border-violet-500",
-          !value && "text-gray-400 dark:text-slate-500",
+          !hasSelection && "text-gray-400 dark:text-slate-500",
           disabled && "opacity-50 cursor-not-allowed",
           className,
         )}
         {...props}
       >
-        <span className="truncate">{selectedLabel || placeholder}</span>
+        <span className="truncate">{displayText}</span>
         <svg
           className={cn(
             "h-4 w-4 shrink-0 transition-transform opacity-50",
@@ -121,14 +120,14 @@ const SelectTrigger = React.forwardRef(
 );
 SelectTrigger.displayName = "SelectTrigger";
 
-// Always in DOM (hidden via CSS) so items stay registered
 const SelectContent = ({ children, className }) => {
   const { isOpen } = React.useContext(SelectContext);
+  if (!isOpen) return null;
   return (
     <div
       className={cn(
-        "absolute z-50 mt-1.5 w-full rounded-xl border shadow-xl overflow-hidden bg-white border-violet-200/80 dark:bg-slate-900 dark:border-slate-700",
-        isOpen ? "block animate-scale-in" : "hidden",
+        "absolute z-50 mt-1.5 w-full rounded-xl border shadow-xl overflow-hidden",
+        "bg-white border-violet-200/80 dark:bg-slate-900 dark:border-slate-700",
       )}
     >
       <div className={cn("max-h-60 overflow-auto p-1", className)}>
@@ -140,24 +139,23 @@ const SelectContent = ({ children, className }) => {
 SelectContent.displayName = "SelectContent";
 
 const SelectItem = ({ children, value, className, ...props }) => {
-  const {
-    value: selectedValue,
-    handleSelect,
-    registerItem,
-  } = React.useContext(SelectContext);
-  const isSelected = selectedValue === value;
-  const label = typeof children === "string" ? children : String(value);
+  const { value: selectedValue, handleSelect, registerItem } =
+    React.useContext(SelectContext);
 
-  // Register via layout effect — safe, never during render
+  const isSelected = selectedValue === value;
+  const label = typeof children === "string" ? children : String(value ?? "");
+
   React.useLayoutEffect(() => {
-    registerItem(value, label);
+    if (value !== undefined && value !== null && value !== "") {
+      registerItem(value, label);
+    }
   }, [value, label, registerItem]);
 
   return (
     <div
-      onMouseDown={(e) => {
-        e.preventDefault();
-        handleSelect(value, label);
+      onClick={(e) => {
+        e.stopPropagation();
+        handleSelect(value);
       }}
       className={cn(
         "relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2 text-sm transition-colors",

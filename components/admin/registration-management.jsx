@@ -25,7 +25,6 @@ import * as XLSX from "xlsx";
 import {
   getAllEvents,
   getBatchesByEvent,
-  getRegistrationsByEvent,
   getEvent,
   subscribeToEventRegistrations,
 } from "@/lib/firestore";
@@ -34,81 +33,109 @@ export function RegistrationManagement() {
   const [events, setEvents] = useState([]);
   const [batches, setBatches] = useState([]);
   const [registrations, setRegistrations] = useState([]);
+
+  // IMPORTANT: Use "" instead of null
   const [selectedEventId, setSelectedEventId] = useState("");
   const [selectedBatchId, setSelectedBatchId] = useState("");
+
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
+  /* =========================
+     LOAD EVENTS ON MOUNT
+  ==========================*/
   useEffect(() => {
+    const loadEvents = async () => {
+      try {
+        const allEvents = await getAllEvents();
+        setEvents(allEvents || []);
+      } catch (error) {
+        console.error("Error loading events:", error);
+        toast.error("Failed to load events");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     loadEvents();
   }, []);
 
+  /* =========================
+     LOAD BATCHES + REGISTRATIONS
+  ==========================*/
   useEffect(() => {
-    if (selectedEventId) {
-      loadBatches();
-      const unsubscribe = subscribeToEventRegistrations(
-        selectedEventId,
-        (regData) => {
-          setRegistrations(regData);
-        },
-      );
-      return () => {
-        unsubscribe();
-      };
-    } else {
+    if (!selectedEventId) {
       setRegistrations([]);
       setBatches([]);
+      return;
     }
+
+    let unsubscribe;
+
+    const loadData = async () => {
+      try {
+        const batchData = await getBatchesByEvent(selectedEventId);
+        setBatches(batchData || []);
+
+        unsubscribe = subscribeToEventRegistrations(
+          selectedEventId,
+          (regData) => {
+            setRegistrations(regData || []);
+          },
+        );
+      } catch (error) {
+        console.error("Error loading data:", error);
+        toast.error("Failed to load registrations");
+      }
+    };
+
+    loadData();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [selectedEventId]);
 
-  const loadEvents = async () => {
-    try {
-      const allEvents = await getAllEvents();
-      setEvents(allEvents);
-      setIsLoading(false);
-    } catch (error) {
-      console.error("Error loading events:", error);
-      toast.error("Failed to load events");
-      setIsLoading(false);
-    }
-  };
-
-  const loadBatches = async () => {
-    try {
-      const batchData = await getBatchesByEvent(selectedEventId);
-      setBatches(batchData);
-    } catch (error) {
-      console.error("Error loading batches:", error);
-      toast.error("Failed to load batches");
-    }
-  };
-
+  /* =========================
+     FILTERING
+  ==========================*/
   const filteredRegistrations = registrations.filter((reg) => {
+    const search = searchTerm.toLowerCase();
+
     const matchesSearch =
-      reg.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reg.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reg.whatsappPhone.includes(searchTerm) ||
-      reg.ticketId.includes(searchTerm);
-    const matchesBatch = !selectedBatchId || reg.batchId === selectedBatchId;
+      (reg.fullName || "").toLowerCase().includes(search) ||
+      (reg.email || "").toLowerCase().includes(search) ||
+      (reg.whatsappPhone || "").includes(search) ||
+      (reg.ticketId || "").includes(search);
+
+    const matchesBatch =
+      selectedBatchId === "" || reg.batchId === selectedBatchId;
+
     return matchesSearch && matchesBatch;
   });
 
+  /* =========================
+     EXPORT TO EXCEL
+  ==========================*/
   const exportToExcel = async () => {
     if (filteredRegistrations.length === 0) {
       toast.error("No registrations to export");
       return;
     }
+
     setIsExporting(true);
+
     try {
       const eventData = await getEvent(selectedEventId);
+
       const exportData = filteredRegistrations.map((reg) => ({
-        "Ticket ID": reg.ticketId,
-        "Full Name": reg.fullName,
-        Email: reg.email,
-        "WhatsApp Phone": reg.whatsappPhone,
+        "Ticket ID": reg.ticketId || "",
+        "Full Name": reg.fullName || "",
+        Email: reg.email || "",
+        "WhatsApp Phone": reg.whatsappPhone || "",
         Event: eventData?.name || "Unknown",
-        Status: reg.status,
+        Status: reg.status || "",
         "Registered Date": reg.createdAt?.toDate
           ? reg.createdAt.toDate().toLocaleDateString()
           : reg.createdAt
@@ -125,6 +152,7 @@ export function RegistrationManagement() {
       const worksheet = XLSX.utils.json_to_sheet(exportData);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Registrations");
+
       worksheet["!cols"] = [
         { wch: 15 },
         { wch: 20 },
@@ -136,8 +164,13 @@ export function RegistrationManagement() {
         { wch: 15 },
         { wch: 30 },
       ];
-      const fileName = `registrations-${eventData?.name || "export"}-${new Date().toISOString().split("T")[0]}.xlsx`;
+
+      const fileName = `registrations-${
+        eventData?.name || "export"
+      }-${new Date().toISOString().split("T")[0]}.xlsx`;
+
       XLSX.writeFile(workbook, fileName);
+
       toast.success("Registrations exported successfully");
     } catch (error) {
       console.error("Export error:", error);
@@ -147,32 +180,42 @@ export function RegistrationManagement() {
     }
   };
 
+  /* =========================
+     STATS
+  ==========================*/
   const stats = {
     total: filteredRegistrations.length,
     used: filteredRegistrations.filter((r) => r.status === "Used").length,
     unused: filteredRegistrations.filter((r) => r.status === "Unused").length,
   };
 
+  /* =========================
+     UI
+  ==========================*/
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="opacity-0 animate-fade-in-up">
-        <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">
-          Registrations
-        </h2>
-        <p className="text-gray-500 dark:text-slate-400 mt-1">
+      <div>
+        <h2 className="text-3xl font-extrabold">Registrations</h2>
+        <p className="text-gray-500 mt-1">
           View and manage event registrations
         </p>
       </div>
 
-      {/* Filters Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 opacity-0 animate-fade-in-up stagger-1">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
+      {/* EVENT SELECT */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label className="text-sm font-medium flex items-center gap-1">
             <Filter className="w-3.5 h-3.5" /> Event
           </label>
-          <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-            <SelectTrigger className="h-11 bg-white dark:bg-slate-900 border-violet-200 dark:border-slate-800 text-gray-900 dark:text-white focus:border-violet-500 rounded-xl">
+
+          <Select
+            value={selectedEventId}
+            onValueChange={(val) => {
+              setSelectedEventId(val);
+              setSelectedBatchId("");
+            }}
+          >
+            <SelectTrigger>
               <SelectValue placeholder="Select event" />
             </SelectTrigger>
             <SelectContent>
@@ -185,17 +228,22 @@ export function RegistrationManagement() {
           </Select>
         </div>
 
+        {/* BATCH SELECT */}
         {selectedEventId && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-              Batch
-            </label>
-            <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
-              <SelectTrigger className="h-11 bg-white dark:bg-slate-900 border-violet-200 dark:border-slate-800 text-gray-900 dark:text-white focus:border-violet-500 rounded-xl">
+          <div>
+            <label className="text-sm font-medium">Batch</label>
+
+            <Select
+              value={selectedBatchId}
+              onValueChange={(val) =>
+                setSelectedBatchId(val === "__all__" ? "" : val)
+              }
+            >
+              <SelectTrigger>
                 <SelectValue placeholder="All batches" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Batches</SelectItem>
+                <SelectItem value="__all__">All Batches</SelectItem>
                 {batches.map((batch) => (
                   <SelectItem key={batch.id} value={batch.id}>
                     {batch.name}
@@ -206,35 +254,36 @@ export function RegistrationManagement() {
           </div>
         )}
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
+        {/* SEARCH */}
+        <div>
+          <label className="text-sm font-medium flex items-center gap-1">
             <Search className="w-3.5 h-3.5" /> Search
           </label>
-          <div className="relative input-glow rounded-xl">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
-            <Input
-              placeholder="Name, email, ticket ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-11 pl-10 bg-white dark:bg-slate-900 border-violet-200 dark:border-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-600 focus:border-violet-500 rounded-xl"
-            />
-          </div>
+
+          <Input
+            placeholder="Name, email, ticket ID..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
 
+        {/* EXPORT */}
         {selectedEventId && (
           <div className="flex items-end">
             <Button
               onClick={exportToExcel}
               disabled={isExporting || filteredRegistrations.length === 0}
-              className="w-full h-11 gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full"
             >
               {isExporting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Exporting...
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Exporting...
                 </>
               ) : (
                 <>
-                  <Download className="w-4 h-4" /> Export to Excel
+                  <Download className="w-4 h-4 mr-2" />
+                  Export to Excel
                 </>
               )}
             </Button>
@@ -242,150 +291,126 @@ export function RegistrationManagement() {
         )}
       </div>
 
+      {/* STATS */}
       {selectedEventId && (
-        <>
-          {/* Stats Cards */}
-          <div className="grid grid-cols-3 gap-4 opacity-0 animate-fade-in-up stagger-2">
-            <div className="rounded-2xl border border-violet-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-5 text-center shadow-sm">
-              <div className="w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center mx-auto mb-3">
-                <Users className="w-5 h-5 text-violet-500 dark:text-violet-400" />
-              </div>
-              <p className="text-3xl font-extrabold text-gray-900 dark:text-white">
-                {stats.total}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                Total
-              </p>
-            </div>
-            <div className="rounded-2xl border border-violet-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-5 text-center shadow-sm">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center mx-auto mb-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
-              </div>
-              <p className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
-                {stats.used}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                Scanned
-              </p>
-            </div>
-            <div className="rounded-2xl border border-violet-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-5 text-center shadow-sm">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
-                <Clock className="w-5 h-5 text-amber-500 dark:text-amber-400" />
-              </div>
-              <p className="text-3xl font-extrabold text-amber-600 dark:text-amber-400">
-                {stats.unused}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                Pending
-              </p>
-            </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="p-4 border rounded-xl text-center">
+            <Users className="mx-auto mb-2" />
+            <p className="text-2xl font-bold">{stats.total}</p>
+            <p>Total</p>
           </div>
 
-          {/* Registrations Table */}
-          <div className="rounded-2xl border border-violet-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 overflow-hidden opacity-0 animate-fade-in-up stagger-3 shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-violet-100 dark:border-slate-800">
-                    <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 dark:text-slate-400 uppercase tracking-wider">
-                      Ticket ID
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 dark:text-slate-400 uppercase tracking-wider">
-                      Full Name
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 dark:text-slate-400 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 dark:text-slate-400 uppercase tracking-wider">
-                      Phone
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 dark:text-slate-400 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 dark:text-slate-400 uppercase tracking-wider">
-                      Registered
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-violet-50 dark:divide-slate-800/60">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={6} className="px-5 py-12 text-center">
-                        <Loader2 className="w-6 h-6 animate-spin text-violet-500 mx-auto" />
-                      </td>
-                    </tr>
-                  ) : filteredRegistrations.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-5 py-12 text-center text-gray-400 dark:text-slate-500"
-                      >
-                        <div className="w-12 h-12 rounded-full bg-violet-50 dark:bg-slate-800 flex items-center justify-center mx-auto mb-3">
-                          <Ticket className="w-6 h-6 text-violet-300 dark:text-slate-600" />
-                        </div>
-                        No registrations found
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredRegistrations.map((reg) => (
-                      <tr
-                        key={reg.id}
-                        className="hover:bg-violet-50/50 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        <td className="px-5 py-4 text-sm font-mono text-violet-600 dark:text-violet-400">
-                          {reg.ticketId}
-                        </td>
-                        <td className="px-5 py-4 text-sm text-gray-900 dark:text-white font-medium">
-                          {reg.fullName}
-                        </td>
-                        <td className="px-5 py-4 text-sm text-gray-500 dark:text-slate-400">
-                          {reg.email}
-                        </td>
-                        <td className="px-5 py-4 text-sm text-gray-500 dark:text-slate-400">
-                          {reg.whatsappPhone}
-                        </td>
-                        <td className="px-5 py-4 text-sm">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                              reg.status === "Used"
-                                ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20"
-                                : "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20"
-                            }`}
-                          >
-                            {reg.status === "Used" ? (
-                              <CheckCircle2 className="w-3 h-3" />
-                            ) : (
-                              <Clock className="w-3 h-3" />
-                            )}
-                            {reg.status}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-sm text-gray-500 dark:text-slate-400">
-                          {reg.createdAt?.toDate
-                            ? reg.createdAt.toDate().toLocaleDateString()
-                            : reg.createdAt
-                              ? new Date(reg.createdAt).toLocaleDateString()
-                              : "N/A"}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+          <div className="p-4 border rounded-xl text-center">
+            <CheckCircle2 className="mx-auto mb-2 text-green-600" />
+            <p className="text-2xl font-bold text-green-600">{stats.used}</p>
+            <p>Scanned</p>
           </div>
-        </>
+
+          <div className="p-4 border rounded-xl text-center">
+            <Clock className="mx-auto mb-2 text-yellow-600" />
+            <p className="text-2xl font-bold text-yellow-600">{stats.unused}</p>
+            <p>Pending</p>
+          </div>
+        </div>
+      )}
+
+      {/* REGISTRATIONS TABLE */}
+      {selectedEventId && (
+        <div className="rounded-2xl border border-violet-100 bg-white overflow-hidden mt-6 shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Ticket ID
+                  </th>
+                  <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Full Name
+                  </th>
+                  <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Phone
+                  </th>
+                  <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-5 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Registered
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-12 text-center">
+                      <Loader2 className="w-6 h-6 animate-spin mx-auto text-violet-500" />
+                    </td>
+                  </tr>
+                ) : filteredRegistrations.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-5 py-12 text-center text-gray-500"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-violet-50 flex items-center justify-center mx-auto mb-3">
+                        <Ticket className="w-6 h-6 text-violet-300" />
+                      </div>
+                      No registrations found
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRegistrations.map((reg) => (
+                    <tr
+                      key={reg.id}
+                      className="hover:bg-violet-50 transition-colors"
+                    >
+                      <td className="px-5 py-4 text-sm font-mono text-violet-600">
+                        {reg.ticketId}
+                      </td>
+                      <td className="px-5 py-4 text-sm font-medium">
+                        {reg.fullName || "-"}
+                      </td>
+                      <td className="px-5 py-4 text-sm">{reg.email || "-"}</td>
+                      <td className="px-5 py-4 text-sm">
+                        {reg.whatsappPhone || "-"}
+                      </td>
+                      <td className="px-5 py-4 text-sm">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${reg.status === "Used" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}
+                        >
+                          {reg.status === "Used" ? (
+                            <CheckCircle2 className="w-3 h-3" />
+                          ) : (
+                            <Clock className="w-3 h-3" />
+                          )}
+                          {reg.status || "-"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-gray-500">
+                        {reg.createdAt?.toDate
+                          ? reg.createdAt.toDate().toLocaleDateString()
+                          : reg.createdAt
+                            ? new Date(reg.createdAt).toLocaleDateString()
+                            : "N/A"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {!selectedEventId && (
-        <div className="text-center py-20 opacity-0 animate-fade-in">
-          <div className="w-20 h-20 rounded-full bg-violet-50 dark:bg-slate-800 flex items-center justify-center mx-auto mb-6">
-            <Users className="w-10 h-10 text-violet-300 dark:text-slate-600" />
+        <div className="text-center py-20">
+          <div className="w-20 h-20 rounded-full bg-violet-50 flex items-center justify-center mx-auto mb-6">
+            <Users className="w-10 h-10 text-violet-300" />
           </div>
-          <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Select an Event
-          </h3>
-          <p className="text-gray-500 dark:text-slate-400">
+          <h3 className="text-2xl font-bold">Select an Event</h3>
+          <p className="text-gray-500">
             Choose an event above to view registrations
           </p>
         </div>
